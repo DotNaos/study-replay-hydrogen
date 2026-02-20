@@ -1,0 +1,36 @@
+appId: com.aryazos.studyreplay
+productName: Study Replay
+asar: true
+asarUnpack:
+    - '**/*.node'
+files:
+    - out/**
+    - resources/**
+    - package.json
+    - '!**/node_modules/@aryazos/**'
+    - '!**/.pnpm-store/**'
+    - '!**/*.map'
+mac:
+    icon: assets/icon.icns
+    identity: null
+    target:
+        - target: dmg
+          arch:
+              - x64
+              - arm64
+    category: public.app-category.education
+    notarize: false
+win:
+    target:
+        - target: nsis
+          arch:
+              - x64
+linux:
+    target:
+        - target: AppImage
+          arch:
+              - x64
+    category: Education
+nsis:
+    oneClick: false
+    allowToChangeInstallationDirectory: true

@@ -1,0 +1,8 @@
+node_modules
+libs/**
+apps/**
+.DS_Store
+tools/**
+out/
+dist/**
+.chromium/

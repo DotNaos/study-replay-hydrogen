@@ -1,0 +1,21 @@
+{
+    "compilerOptions": {
+        "target": "ES2022",
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "jsx": "react-jsx",
+        "strict": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true,
+        "types": ["node"],
+        "resolveJsonModule": true
+    },
+    "include": [
+        "src/main/**/*.ts",
+        "src/preload/**/*.ts",
+        "src/renderer/**/*.ts",
+        "src/renderer/**/*.tsx",
+        "src/**/*.d.ts"
+    ]
+}

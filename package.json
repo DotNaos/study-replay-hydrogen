@@ -1,0 +1,47 @@
+{
+  "name": "@aryazos/study-replay-app",
+  "private": true,
+  "version": "0.1.0",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "postinstall": "node scripts/download-chromium.mjs",
+    "dev": "npx electron-rebuild -m . -o better-sqlite3 && env -u ELECTRON_RUN_AS_NODE electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "env -u ELECTRON_RUN_AS_NODE electron-vite preview",
+    "build:mac": "electron-vite build && electron-builder --mac",
+    "build:win": "electron-vite build && electron-builder --win",
+    "build:linux": "electron-vite build && electron-builder --linux",
+    "install:mac": "bun run build:mac && open \"dist/$(ls dist | grep -E '\\.dmg$' | grep $(uname -m | sed 's/x86_64/x64/' | sed 's/arm64/arm64/') | head -1)\"",
+    "install:win": "bun run build:win && start dist\\*.exe",
+    "install:linux": "bun run build:linux && xdg-open dist/*.AppImage"
+  },
+  "dependencies": {
+    "@electron-toolkit/preload": "^3.0.2",
+    "@heroui/react": "3.0.0-beta.3",
+    "@heroui/styles": "3.0.0-beta.3",
+    "@puppeteer/browsers": "^2.11.2",
+    "better-sqlite3": "^12.6.2",
+    "electron-store": "^11.0.2",
+    "lucide-react": "^0.562.0",
+    "media-chrome": "^3.2.0",
+    "pino": "^10.3.1",
+    "pino-pretty": "^13.1.3",
+    "puppeteer-core": "^24.36.1",
+    "react": "19.1.4",
+    "react-dom": "19.1.4",
+    "react-player": "^2.16.0",
+    "zustand": "^5.0.10"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.18",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/react": "^19.1.13",
+    "@types/react-dom": "^19.1.9",
+    "@vitejs/plugin-react": "^5.1.2",
+    "electron": "39.2.4",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^4.0.1",
+    "tailwindcss": "^4.1.18",
+    "typescript": "^5.9.3"
+  }
+}

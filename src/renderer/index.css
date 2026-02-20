@@ -1,0 +1,82 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap");
+@import "tailwindcss";
+@import "@heroui/styles";
+
+:root {
+  color-scheme: dark;
+  font-family: "Inter", system-ui, sans-serif;
+  background: #09090b;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: #0f131a;
+  color: #e4e4e7;
+  -webkit-font-smoothing: antialiased;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+h1, h2, h3, .font-display {
+  font-family: "Outfit", sans-serif;
+}
+
+/* Media Chrome Styling */
+media-controller {
+  --media-control-bar-background: rgba(15, 23, 42, 0.4);
+  --media-control-bar-height: 56px;
+  --media-icon-color: #f8fafc;
+  --media-icon-hover-color: #f8fafc;
+  --media-range-track-background: rgba(255, 255, 255, 0.1);
+  --media-range-bar-color: #f8fafc;
+  --media-range-thumb-background: #f8fafc;
+  --media-range-thumb-width: 14px;
+  --media-range-thumb-height: 14px;
+  --media-time-text-color: #94a3b8;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+media-control-bar {
+  border-radius: 9999px !important;
+  margin: 24px;
+  width: calc(100% - 48px);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 0 12px;
+  overflow: hidden;
+}
+
+media-time-range, media-volume-range {
+  --media-range-track-height: 8px !important;
+  --media-range-track-border-radius: 9999px !important;
+  --media-range-bar-border-radius: 9999px !important;
+  margin: 0 12px;
+}
+
+media-time-range {
+  height: 32px;
+  flex: 1;
+}
+
+media-volume-range {
+  width: 100px;
+  height: 32px;
+}
+
+/* Ensure icons in media buttons are properly centered and buttons are perfect circles */
+media-play-button, media-seek-backward-button, media-seek-forward-button, media-mute-button, media-fullscreen-button {
+  cursor: pointer !important;
+  background: transparent !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  border-radius: 9999px !important;
+}
