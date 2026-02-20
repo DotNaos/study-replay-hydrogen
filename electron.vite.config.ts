@@ -3,8 +3,6 @@ import react from "@vitejs/plugin-react";
 import { defineConfig, externalizeDepsPlugin } from "electron-vite";
 import path from "node:path";
 
-const workspaceRoot = path.resolve(__dirname, "../../..");
-
 export default defineConfig({
     main: {
         plugins: [externalizeDepsPlugin()],
@@ -43,18 +41,12 @@ export default defineConfig({
         resolve: {
             alias: {
                 '@renderer': path.resolve(__dirname, 'src/renderer'),
-                '@aryazos/ui': path.resolve(workspaceRoot, 'libs/ts-ui/src'),
-                react: path.resolve(workspaceRoot, 'node_modules/.bun/react@19.1.4/node_modules/react'),
-                'react-dom': path.resolve(
-                    workspaceRoot,
-                    'node_modules/.bun/react-dom@19.1.4+c8043de63ddd3aa5/node_modules/react-dom',
-                ),
             },
             dedupe: ['react', 'react-dom'],
         },
         server: {
             fs: {
-                allow: [workspaceRoot],
+                allow: [path.resolve(__dirname)],
             },
         },
         plugins: [react(), tailwindcss()],
