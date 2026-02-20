@@ -111,7 +111,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ matrix.target == 'macos-arm64' && secrets.CSC_LINK || '' }}
           CSC_KEY_PASSWORD: ${{ matrix.target == 'macos-arm64' && secrets.CSC_KEY_PASSWORD || '' }}
-          CSC_NAME: ${{ matrix.target == 'macos-arm64' && secrets.CSC_NAME || '' }}
           APPLE_ID: ${{ matrix.target == 'macos-arm64' && secrets.APPLE_ID || '' }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.target == 'macos-arm64' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
           APPLE_TEAM_ID: ${{ matrix.target == 'macos-arm64' && secrets.APPLE_TEAM_ID || '' }}
