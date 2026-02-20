@@ -85,10 +85,36 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Validate macOS signing/notarization secrets
+        if: ${{ matrix.target == 'macos-arm64' }}
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          missing=0
+          for name in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing required secret: $name"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
       - name: Build desktop artifact
         run: ${{ matrix.build_command }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ matrix.target == 'macos-arm64' && secrets.CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.target == 'macos-arm64' && secrets.CSC_KEY_PASSWORD || '' }}
+          CSC_NAME: ${{ matrix.target == 'macos-arm64' && secrets.CSC_NAME || '' }}
+          APPLE_ID: ${{ matrix.target == 'macos-arm64' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.target == 'macos-arm64' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ matrix.target == 'macos-arm64' && secrets.APPLE_TEAM_ID || '' }}
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

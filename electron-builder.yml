@@ -12,14 +12,14 @@ files:
     - '!**/*.map'
 mac:
     icon: assets/icon.icns
-    identity: null
+    hardenedRuntime: true
     target:
         - target: dmg
           arch:
               - x64
               - arm64
     category: public.app-category.education
-    notarize: false
+    notarize: true
 win:
     target:
         - target: nsis
