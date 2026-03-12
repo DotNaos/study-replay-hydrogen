@@ -1,6 +1,27 @@
 export {}
 
 declare global {
+    type StudyReplayUpdaterStage =
+        | 'idle'
+        | 'unsupported'
+        | 'checking'
+        | 'available'
+        | 'not-available'
+        | 'downloading'
+        | 'downloaded'
+        | 'error'
+
+    type StudyReplayUpdaterState = {
+        enabled: boolean
+        stage: StudyReplayUpdaterStage
+        currentVersion: string
+        latestVersion: string | null
+        message: string | null
+        error: string | null
+        progressPercent: number | null
+        checkedAt: number | null
+    }
+
     interface Window {
         webexApi: {
             selectOutput: () => Promise<string | null>
@@ -31,6 +52,9 @@ declare global {
                 position: number,
                 duration?: number,
             ) => Promise<{ ok: boolean }>
+            getUpdaterState: () => Promise<StudyReplayUpdaterState>
+            checkForUpdates: () => Promise<{ ok: boolean; error?: string }>
+            quitAndInstallUpdate: () => Promise<{ ok: boolean; error?: string }>
             getRecentHistory: (limit: number) => Promise<any[]>
             getHeroRecording: () => Promise<any>
             toggleWatchlist: (courseId: string, status: boolean) => Promise<{ ok: boolean }>
@@ -41,6 +65,10 @@ declare global {
                 ) => void,
             ) => void
             offLoadRecordingsProgress: () => void
+            onUpdaterState: (
+                callback: (event: any, payload: StudyReplayUpdaterState) => void,
+            ) => void
+            offUpdaterState: () => void
         }
     }
 

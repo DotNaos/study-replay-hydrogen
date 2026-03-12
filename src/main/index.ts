@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { autoUpdater } from 'electron-updater'
 import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import path from 'node:path'
@@ -24,8 +25,249 @@ import {
 } from './store'
 
 const isMac = process.platform === 'darwin'
+const UPDATER_STATE_CHANNEL = 'study-replay:updater:state'
+
+type UpdaterStage =
+    | 'idle'
+    | 'unsupported'
+    | 'checking'
+    | 'available'
+    | 'not-available'
+    | 'downloading'
+    | 'downloaded'
+    | 'error'
+
+type UpdaterState = {
+    enabled: boolean
+    stage: UpdaterStage
+    currentVersion: string
+    latestVersion: string | null
+    message: string | null
+    error: string | null
+    progressPercent: number | null
+    checkedAt: number | null
+}
 
 if (process.env.HEADFUL === '1') setHeadful(true)
+
+let mainWindow: BrowserWindow | null = null
+let updaterInitialized = false
+let updaterCheckInFlight: Promise<void> | null = null
+let updaterState: UpdaterState = {
+    enabled: false,
+    stage: 'unsupported',
+    currentVersion: app.getVersion(),
+    latestVersion: null,
+    message: 'Auto-Update ist nur in der installierten App verfügbar.',
+    error: null,
+    progressPercent: null,
+    checkedAt: null,
+}
+
+function sendUpdaterState(targetWindow?: BrowserWindow | null): void {
+    const window = targetWindow ?? mainWindow
+    if (!window || window.isDestroyed()) return
+    window.webContents.send(UPDATER_STATE_CHANNEL, updaterState)
+}
+
+function setUpdaterState(patch: Partial<UpdaterState>): void {
+    updaterState = {
+        ...updaterState,
+        ...patch,
+        currentVersion: app.getVersion(),
+    }
+    sendUpdaterState()
+}
+
+function supportsAutoUpdatesOnPlatform(): boolean {
+    return process.platform === 'darwin' || process.platform === 'win32'
+}
+
+function isUpdaterEnabled(): boolean {
+    return updaterState.enabled && supportsAutoUpdatesOnPlatform() && app.isPackaged
+}
+
+function toUpdaterErrorMessage(error: unknown): string {
+    if (error instanceof Error) return error.message
+    return String(error)
+}
+
+function normalizeVersion(version: string | null | undefined): string {
+    return String(version ?? '')
+        .trim()
+        .replace(/^v/i, '')
+}
+
+function isSameVersion(left: string | null | undefined, right: string | null | undefined): boolean {
+    const normalizedLeft = normalizeVersion(left)
+    const normalizedRight = normalizeVersion(right)
+    return Boolean(normalizedLeft) && normalizedLeft === normalizedRight
+}
+
+async function checkForAppUpdates(reason: 'startup' | 'manual'): Promise<void> {
+    if (!isUpdaterEnabled()) return
+    if (updaterCheckInFlight) {
+        await updaterCheckInFlight
+        return
+    }
+
+    updaterCheckInFlight = (async () => {
+        try {
+            if (reason === 'manual') {
+                setUpdaterState({
+                    stage: 'checking',
+                    message: 'Prüfe auf Updates...',
+                    error: null,
+                })
+            }
+            await autoUpdater.checkForUpdates()
+        } catch (error) {
+            setUpdaterState({
+                stage: 'error',
+                error: toUpdaterErrorMessage(error),
+                message: 'Update-Prüfung fehlgeschlagen.',
+                checkedAt: Date.now(),
+            })
+            throw error
+        } finally {
+            updaterCheckInFlight = null
+        }
+    })()
+
+    await updaterCheckInFlight
+}
+
+function initializeAutoUpdater(): void {
+    if (updaterInitialized) return
+    updaterInitialized = true
+
+    if (!app.isPackaged) {
+        setUpdaterState({
+            enabled: false,
+            stage: 'unsupported',
+            message: 'Auto-Update ist im Dev-Modus deaktiviert.',
+            error: null,
+        })
+        return
+    }
+
+    if (!supportsAutoUpdatesOnPlatform()) {
+        setUpdaterState({
+            enabled: false,
+            stage: 'unsupported',
+            message: 'Auto-Update wird auf dieser Plattform aktuell nicht unterstützt.',
+            error: null,
+        })
+        return
+    }
+
+    if (isMac && !app.isInApplicationsFolder()) {
+        setUpdaterState({
+            enabled: false,
+            stage: 'unsupported',
+            message: 'Auto-Update ist nur verfügbar, wenn die App im Programme-Ordner liegt.',
+            error: null,
+        })
+        return
+    }
+
+    autoUpdater.autoDownload = true
+    autoUpdater.autoInstallOnAppQuit = true
+    autoUpdater.allowPrerelease = false
+
+    autoUpdater.on('checking-for-update', () => {
+        setUpdaterState({
+            enabled: true,
+            stage: 'checking',
+            message: 'Prüfe auf Updates...',
+            error: null,
+            progressPercent: null,
+            checkedAt: Date.now(),
+        })
+    })
+
+    autoUpdater.on('update-available', (info) => {
+        if (isSameVersion(info.version ?? null, app.getVersion())) {
+            setUpdaterState({
+                enabled: true,
+                stage: 'not-available',
+                latestVersion: info.version ?? null,
+                message: 'App ist aktuell.',
+                error: null,
+                progressPercent: null,
+                checkedAt: Date.now(),
+            })
+            return
+        }
+
+        setUpdaterState({
+            enabled: true,
+            stage: 'available',
+            latestVersion: info.version ?? null,
+            message: `Version ${info.version ?? 'neu'} gefunden. Download startet...`,
+            error: null,
+            progressPercent: null,
+            checkedAt: Date.now(),
+        })
+    })
+
+    autoUpdater.on('update-not-available', (info) => {
+        setUpdaterState({
+            enabled: true,
+            stage: 'not-available',
+            latestVersion: info.version ?? null,
+            message: 'App ist aktuell.',
+            error: null,
+            progressPercent: null,
+            checkedAt: Date.now(),
+        })
+    })
+
+    autoUpdater.on('download-progress', (progress) => {
+        setUpdaterState({
+            enabled: true,
+            stage: 'downloading',
+            message: 'Update wird heruntergeladen...',
+            error: null,
+            progressPercent:
+                typeof progress.percent === 'number'
+                    ? Math.max(0, Math.min(100, progress.percent))
+                    : null,
+        })
+    })
+
+    autoUpdater.on('update-downloaded', (info) => {
+        const alreadyCurrent = isSameVersion(info.version ?? null, app.getVersion())
+        setUpdaterState({
+            enabled: true,
+            stage: alreadyCurrent ? 'not-available' : 'downloaded',
+            latestVersion: info.version ?? null,
+            message: alreadyCurrent
+                ? 'App ist aktuell.'
+                : `Version ${info.version ?? 'neu'} ist bereit zur Installation.`,
+            error: null,
+            progressPercent: alreadyCurrent ? null : 100,
+            checkedAt: Date.now(),
+        })
+    })
+
+    autoUpdater.on('error', (error) => {
+        setUpdaterState({
+            enabled: true,
+            stage: 'error',
+            message: 'Update fehlgeschlagen.',
+            error: toUpdaterErrorMessage(error),
+            checkedAt: Date.now(),
+        })
+    })
+
+    setUpdaterState({
+        enabled: true,
+        stage: 'idle',
+        message: null,
+        error: null,
+    })
+}
 
 function createWindow(): BrowserWindow {
     const preloadPath = path.join(__dirname, '../preload/index.js')
@@ -49,6 +291,10 @@ function createWindow(): BrowserWindow {
     } else {
         win.loadFile(path.join(__dirname, '../renderer/index.html'))
     }
+
+    win.webContents.on('did-finish-load', () => {
+        sendUpdaterState(win)
+    })
 
     return win
 }
@@ -231,6 +477,32 @@ ipcMain.handle(
     },
 )
 
+ipcMain.handle('study-replay:updater:getState', async () => updaterState)
+
+ipcMain.handle('study-replay:updater:checkForUpdates', async () => {
+    try {
+        await checkForAppUpdates('manual')
+        return { ok: true }
+    } catch (error) {
+        return { ok: false, error: toUpdaterErrorMessage(error) }
+    }
+})
+
+ipcMain.handle('study-replay:updater:quitAndInstall', async () => {
+    if (!isUpdaterEnabled()) {
+        return { ok: false, error: 'Auto-Updater ist nicht verfügbar.' }
+    }
+
+    if (updaterState.stage !== 'downloaded') {
+        return { ok: false, error: 'Es ist noch kein geladenes Update vorhanden.' }
+    }
+
+    setImmediate(() => {
+        autoUpdater.quitAndInstall()
+    })
+    return { ok: true }
+})
+
 app.whenReady().then(async () => {
     app.setName('Study Replay')
     if (process.platform === 'win32') {
@@ -245,7 +517,9 @@ app.whenReady().then(async () => {
         })
     }
 
-    createWindow()
+    mainWindow = createWindow()
+    initializeAutoUpdater()
+    void checkForAppUpdates('startup')
 
     if (process.platform === 'darwin') {
         app.dock?.setIcon(path.join(__dirname, '../../assets/dock-icon.png'))
@@ -253,7 +527,7 @@ app.whenReady().then(async () => {
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
-            createWindow()
+            mainWindow = createWindow()
         }
     })
 })

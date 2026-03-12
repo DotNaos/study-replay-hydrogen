@@ -53,6 +53,18 @@ function normalizeNullable(value: string | undefined | null): string | null {
     return trimmed ? trimmed : null
 }
 
+function clearExpiredWebexCoverUrls(dbInstance: Database.Database): void {
+    dbInstance
+        .prepare(
+            `UPDATE recordings
+             SET coverUrl = NULL
+             WHERE coverUrl LIKE '%webex.com%'
+               AND coverUrl LIKE '%ticket=%'
+               AND coverUrl LIKE '%recordingViewerInfoToken=%';`,
+        )
+        .run()
+}
+
 export function deriveTerm(courseName: string): string {
     const match = courseName.match(/\b(FS|HS)\s?(\d{2})\b/i)
     if (!match) return 'Unknown'
@@ -115,6 +127,7 @@ function getDb(): Database.Database {
 
     db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_recording_uuid ON recordings(recordingUuid);`)
     db.exec(`CREATE INDEX IF NOT EXISTS idx_course_term ON recordings(term, courseId);`)
+    clearExpiredWebexCoverUrls(db)
 
     return db
 }

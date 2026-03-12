@@ -1,5 +1,6 @@
 appId: com.aryazos.studyreplay
 productName: Study Replay
+artifactName: Study-Replay-${version}-${arch}.${ext}
 asar: true
 asarUnpack:
     - '**/*.node'
@@ -34,3 +35,9 @@ linux:
 nsis:
     oneClick: false
     allowToChangeInstallationDirectory: true
+publish:
+    provider: github
+    owner: DotNaos
+    repo: study-replay-hydrogen
+    releaseType: release
+    vPrefixedTagName: true

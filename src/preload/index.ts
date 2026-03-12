@@ -24,6 +24,9 @@ contextBridge.exposeInMainWorld('webexApi', {
         ipcRenderer.invoke('toggle-watchlist', { courseId, status }),
     saveCourseProgress: (courseId: string, recordingUuid: string) =>
         ipcRenderer.invoke('save-course-progress', { courseId, recordingUuid }),
+    getUpdaterState: () => ipcRenderer.invoke('study-replay:updater:getState'),
+    checkForUpdates: () => ipcRenderer.invoke('study-replay:updater:checkForUpdates'),
+    quitAndInstallUpdate: () => ipcRenderer.invoke('study-replay:updater:quitAndInstall'),
     onLoadRecordingsProgress: (
         callback: (
             event: any,
@@ -31,4 +34,7 @@ contextBridge.exposeInMainWorld('webexApi', {
         ) => void,
     ) => ipcRenderer.on('load-recordings-progress', callback),
     offLoadRecordingsProgress: () => ipcRenderer.removeAllListeners('load-recordings-progress'),
+    onUpdaterState: (callback: (event: any, payload: any) => void) =>
+        ipcRenderer.on('study-replay:updater:state', callback),
+    offUpdaterState: () => ipcRenderer.removeAllListeners('study-replay:updater:state'),
 })

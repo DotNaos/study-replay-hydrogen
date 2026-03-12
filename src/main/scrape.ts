@@ -30,6 +30,12 @@ type SessionCache = {
     timestamp: number
 }
 
+type WebexAuth = {
+    csrfToken?: string
+    cookies: string
+    siteId: string
+}
+
 let browser: Browser | null = null
 let headful = false
 
@@ -504,11 +510,11 @@ function parseWebexLtiLinks(html: string, baseUrl: string): Array<{ name: string
 async function openWebexLti(
     context: BrowserContext,
     ltiUrl: string,
-): Promise<{ csrfToken?: string; cookies: string; siteId: string }> {
+): Promise<WebexAuth> {
     const extractAuthFromBrowser = async (
         page: Page,
         timeoutMs: number,
-    ): Promise<{ csrfToken?: string; cookies: string; siteId: string }> => {
+    ): Promise<WebexAuth> => {
         const deadline = Date.now() + timeoutMs
         let csrfToken: string | undefined
         let cookieHeader = ''
@@ -599,6 +605,59 @@ async function openWebexLti(
         return auth
     } finally {
         await page.close().catch(() => {})
+    }
+}
+
+function toErrorMessage(error: unknown): string {
+    if (error instanceof Error) return error.message
+    return String(error)
+}
+
+function isExpiredWebexAuthError(error: unknown): boolean {
+    const message = toErrorMessage(error)
+    return (
+        /(?:meeting_sessions|recordings) failed \(401\)/i.test(message) ||
+        /token may have expired/i.test(message)
+    )
+}
+
+async function withRefreshedWebexAuth<T>(
+    context: BrowserContext,
+    ltiUrl: string,
+    currentAuth: WebexAuth,
+    operation: (auth: WebexAuth) => Promise<T>,
+): Promise<{ auth: WebexAuth; result: T }> {
+    try {
+        return {
+            auth: currentAuth,
+            result: await operation(currentAuth),
+        }
+    } catch (error) {
+        if (!isExpiredWebexAuthError(error)) {
+            throw error
+        }
+
+        log.warn({ ltiUrl, error: toErrorMessage(error) }, 'Webex auth expired, reopening LTI')
+        const refreshedAuth = await openWebexLti(context, ltiUrl)
+        return {
+            auth: refreshedAuth,
+            result: await operation(refreshedAuth),
+        }
+    }
+}
+
+function sanitizeCoverUrl(value: string): string {
+    if (!value) return ''
+
+    try {
+        const parsed = new URL(value)
+        const hasEphemeralTicket =
+            parsed.hostname.endsWith('.webex.com') &&
+            parsed.searchParams.has('ticket') &&
+            parsed.searchParams.has('recordingViewerInfoToken')
+        return hasEphemeralTicket ? '' : value
+    } catch {
+        return value
     }
 }
 
@@ -848,17 +907,19 @@ export async function fetchCourseRecordings(
     for (const activity of webexActivities) {
         onProgress?.(0, 1, `Opening Webex: ${activity.name}...`)
         const ltiStart = Date.now()
-        const webexAuth = await openWebexLti(context, activity.url)
+        let webexAuth = await openWebexLti(context, activity.url)
         log.info({ ms: Date.now() - ltiStart, activity: activity.name }, 'webex LTI opened')
 
         onProgress?.(0, 1, 'Fetching meeting sessions...')
         const sessionsStart = Date.now()
-        const sessions = await fetchMeetingSessions(
-            webexAuth.cookies,
-            webexAuth.csrfToken,
-            startStr,
-            endStr,
+        const sessionsResult = await withRefreshedWebexAuth(
+            context,
+            activity.url,
+            webexAuth,
+            (auth) => fetchMeetingSessions(auth.cookies, auth.csrfToken, startStr, endStr),
         )
+        webexAuth = sessionsResult.auth
+        const sessions = sessionsResult.result
 
         log.info({ ms: Date.now() - sessionsStart, count: sessions.length }, 'meeting sessions fetched')
 
@@ -871,11 +932,14 @@ export async function fetchCourseRecordings(
                 const sessionId = String(session?.id ?? session?.meetingSessionId ?? '')
                 if (!sessionId) return []
                 const sessionTitle = String(session?.title ?? session?.name ?? '')
-                const sessionRecordings = await fetchSessionRecordings(
-                    webexAuth.cookies,
-                    webexAuth.csrfToken,
-                    sessionId,
+                const recordingsResult = await withRefreshedWebexAuth(
+                    context,
+                    activity.url,
+                    webexAuth,
+                    (auth) => fetchSessionRecordings(auth.cookies, auth.csrfToken, sessionId),
                 )
+                webexAuth = recordingsResult.auth
+                const sessionRecordings = recordingsResult.result
 
                 // Small jitter between sessions to avoid hammering the server
                 await delay(Math.random() * 200 + 100)
@@ -973,13 +1037,15 @@ export async function fetchCourseRecordings(
                                 )
                                 if (streamDownloadUrl) downloadUrl = streamDownloadUrl
 
-                                coverUrl = String(
-                                    downloadInfo?.playerCoverURL ??
+                                coverUrl = sanitizeCoverUrl(
+                                    String(
+                                        downloadInfo?.playerCoverURL ??
                                         downloadInfo?.playerCoverUrl ??
                                         downloadInfo?.coverUrl ??
                                         downloadInfo?.thumbnailUrl ??
                                         streamInfo?.playerCoverURL ??
                                         '',
+                                    ),
                                 )
                             }
                         }
@@ -1014,7 +1080,7 @@ export async function fetchCourseRecordings(
 
                 return processed.filter((r): r is RecordingRecord => r !== null)
             },
-            3, // Outer concurrency limit
+            1, // Keep Webex auth refresh deterministic across sessions
         )
 
         recordings.push(...sessionResults.flat())

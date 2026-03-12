@@ -44,6 +44,9 @@ export default function App() {
     const [password, setPassword] = useState('');
     const [autoLogin, setAutoLogin] = useState(true);
     const [hasCreds, setHasCreds] = useState(false);
+    const [updaterState, setUpdaterState] =
+        useState<StudyReplayUpdaterState | null>(null);
+    const [updateActionPending, setUpdateActionPending] = useState(false);
 
     // Get current course/recording from store (reactive!)
     const selectedCourse = selectedCourseId
@@ -77,6 +80,27 @@ export default function App() {
             mounted = false;
         };
     }, [loadLibrary]);
+
+    useEffect(() => {
+        let mounted = true;
+
+        window.webexApi.getUpdaterState().then((payload) => {
+            if (mounted) setUpdaterState(payload);
+        });
+
+        const handleUpdaterState = (
+            _event: any,
+            payload: StudyReplayUpdaterState,
+        ) => {
+            setUpdaterState(payload);
+        };
+
+        window.webexApi.onUpdaterState(handleUpdaterState);
+        return () => {
+            mounted = false;
+            window.webexApi.offUpdaterState();
+        };
+    }, []);
 
     const handleToggleWatchlist = async (courseId: string, status: boolean) => {
         await toggleWatchlist(courseId, status);
@@ -121,6 +145,32 @@ export default function App() {
     const handleToggleAutoLogin = async (checked: boolean) => {
         setAutoLogin(checked);
         await window.webexApi.setPreferences({ autoLogin: checked });
+    };
+
+    const handleCheckForUpdates = async () => {
+        setUpdateActionPending(true);
+        try {
+            const result = await window.webexApi.checkForUpdates();
+            if (!result.ok) {
+                setStatus('Failed');
+                setMessage(result.error || 'Update-Prüfung fehlgeschlagen.');
+            }
+        } finally {
+            setUpdateActionPending(false);
+        }
+    };
+
+    const handleQuitAndInstallUpdate = async () => {
+        setUpdateActionPending(true);
+        try {
+            const result = await window.webexApi.quitAndInstallUpdate();
+            if (!result.ok) {
+                setStatus('Failed');
+                setMessage(result.error || 'Update-Installation fehlgeschlagen.');
+            }
+        } finally {
+            setUpdateActionPending(false);
+        }
     };
 
     const handleRefreshCourses = async () => {
@@ -314,6 +364,78 @@ export default function App() {
                                 <span className="text-sm text-slate-400 font-medium group-hover:text-slate-300 transition-colors select-none">
                                     Keep me signed in
                                 </span>
+                            </div>
+
+                            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-3">
+                                <div className="flex items-start justify-between gap-4">
+                                    <div className="space-y-1">
+                                        <div className="text-[10px] uppercase tracking-widest font-bold text-slate-500">
+                                            App Updates
+                                        </div>
+                                        <div className="text-sm font-semibold text-white">
+                                            Version{' '}
+                                            {updaterState?.currentVersion ||
+                                                'unbekannt'}
+                                        </div>
+                                        <div className="text-xs text-slate-400">
+                                            {updaterState?.error ||
+                                                updaterState?.message ||
+                                                'Update-Status wird geladen...'}
+                                        </div>
+                                    </div>
+                                    <Button
+                                        onPress={handleCheckForUpdates}
+                                        isDisabled={
+                                            updateActionPending ||
+                                            updaterState?.stage ===
+                                                'checking' ||
+                                            updaterState?.stage ===
+                                                'downloading'
+                                        }
+                                        className="rounded-full bg-white/8 text-white hover:bg-white/12 px-4 min-w-0"
+                                    >
+                                        <RefreshCw
+                                            className={`w-4 h-4 ${
+                                                updateActionPending ||
+                                                updaterState?.stage ===
+                                                    'checking'
+                                                    ? 'animate-spin'
+                                                    : ''
+                                            }`}
+                                        />
+                                        Prüfen
+                                    </Button>
+                                </div>
+
+                                {typeof updaterState?.progressPercent ===
+                                    'number' && (
+                                    <div className="space-y-1">
+                                        <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                                            <div
+                                                className="h-full bg-emerald-500 transition-all duration-300"
+                                                style={{
+                                                    width: `${updaterState.progressPercent}%`,
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="text-[11px] text-slate-500">
+                                            {Math.round(
+                                                updaterState.progressPercent,
+                                            )}
+                                            %
+                                        </div>
+                                    </div>
+                                )}
+
+                                {updaterState?.stage === 'downloaded' && (
+                                    <Button
+                                        onPress={handleQuitAndInstallUpdate}
+                                        isDisabled={updateActionPending}
+                                        className="w-full rounded-full bg-emerald-500 text-black font-bold hover:bg-emerald-400"
+                                    >
+                                        Neustart und installieren
+                                    </Button>
+                                )}
                             </div>
 
                             <div className="pt-6 grid grid-cols-2 gap-4">

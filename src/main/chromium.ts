@@ -44,12 +44,7 @@ function findVersionDir(baseDir: string, prefix: string): string {
     }
 }
 
-export function getChromiumExecutablePath(): string | null {
-    const baseDir = getChromeBaseDir()
-    const prefix = getPlatformPrefix()
-    const versionDir = findVersionDir(baseDir, prefix)
-    if (!versionDir) return null
-
+function executableFromVersionDir(baseDir: string, versionDir: string): string {
     if (process.platform === 'darwin') {
         return path.join(
             baseDir,
@@ -65,6 +60,34 @@ export function getChromiumExecutablePath(): string | null {
     } else {
         return path.join(baseDir, versionDir, 'chrome-linux64', 'chrome')
     }
+}
+
+export function getChromiumExecutablePathFromBaseDir(baseDir: string): string | null {
+    const prefix = getPlatformPrefix()
+    const candidateRoots = [baseDir, path.join(baseDir, 'chrome')]
+
+    for (const root of candidateRoots) {
+        try {
+            const versionDirs = readdirSync(root)
+                .filter((entry) => entry.startsWith(prefix))
+                .sort((left, right) => right.localeCompare(left, undefined, { numeric: true }))
+
+            for (const versionDir of versionDirs) {
+                const executablePath = executableFromVersionDir(root, versionDir)
+                if (existsSync(executablePath)) {
+                    return executablePath
+                }
+            }
+        } catch {
+            // Ignore missing cache roots and continue with the next candidate.
+        }
+    }
+
+    return null
+}
+
+export function getChromiumExecutablePath(): string | null {
+    return getChromiumExecutablePathFromBaseDir(getChromeBaseDir())
 }
 
 export function isChromiumInstalled(): boolean {
@@ -98,6 +121,15 @@ export async function ensureChromium(onProgress?: (percent: number) => void): Pr
         },
     })
 
-    log.info({ path: result.executablePath }, 'Chrome installed')
-    return result.executablePath
+    const resolvedPath =
+        (result.executablePath && existsSync(result.executablePath)
+            ? result.executablePath
+            : null) ?? getChromiumExecutablePathFromBaseDir(cacheDir)
+
+    if (!resolvedPath) {
+        throw new Error(`Chrome installed but executable was not found in cache: ${cacheDir}`)
+    }
+
+    log.info({ path: resolvedPath }, 'Chrome installed')
+    return resolvedPath
 }

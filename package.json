@@ -1,7 +1,7 @@
 {
   "name": "@aryazos/study-replay-app",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "main": "./out/main/index.js",
   "scripts": {
     "postinstall": "node scripts/download-chromium.mjs",
@@ -22,6 +22,7 @@
     "@puppeteer/browsers": "^2.11.2",
     "better-sqlite3": "^12.6.2",
     "electron-store": "^11.0.2",
+    "electron-updater": "^6.8.3",
     "lucide-react": "^0.562.0",
     "media-chrome": "^3.2.0",
     "pino": "^10.3.1",
